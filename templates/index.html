@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Advanced Alarm Clock</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Segoe+UI&display=swap');
+
+  /* Animated Gradient Background */
+  body {
+    margin: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    height: 100vh;
+    background: linear-gradient(270deg, #667eea, #764ba2, #6a11cb, #2575fc);
+    background-size: 800% 800%;
+    animation: gradientShift 20s ease infinite;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Soft overlay texture for depth */
+  body::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: url('https://www.transparenttextures.com/patterns/asfalt-light.png') repeat;
+    opacity: 0.05;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Put your content above overlay */
+  form, h1, #message, #countdown, #snoozeBtn {
+    position: relative;
+    z-index: 1;
+  }
+
+  h1 {
+    margin-bottom: 20px;
+    font-weight: 700;
+    text-shadow: 2px 2px 8px rgba(0,0,0,0.5);
+    font-size: 2.8rem;
+  }
+  form {
+    background: rgba(255,255,255,0.15);
+    padding: 30px 40px;
+    border-radius: 20px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+    backdrop-filter: blur(10px);
+    max-width: 400px;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+  }
+  label {
+    font-weight: 600;
+  }
+  input[type="time"], input[type="number"], select {
+    padding: 12px 18px;
+    border-radius: 15px;
+    border: none;
+    font-size: 1.2rem;
+    outline: none;
+    width: 100%;
+    box-shadow: inset 0 0 10px rgba(0,0,0,0.2);
+    transition: box-shadow 0.3s ease;
+  }
+  input[type="time"]:focus, input[type="number"]:focus, select:focus {
+    box-shadow: inset 0 0 12px #ffc371;
+  }
+  input[type="file"] {
+    color: white;
+  }
+  button {
+    background: linear-gradient(135deg, #ff6b6b, #ffa502);
+    border: none;
+    padding: 14px 30px;
+    color: white;
+    font-size: 1.2rem;
+    border-radius: 15px;
+    cursor: pointer;
+    transition: background 0.4s ease;
+    font-weight: 700;
+    box-shadow: 0 6px 20px rgba(255,165,0,0.6);
+  }
+  button:hover {
+    background: linear-gradient(135deg, #ffa502, #ff6b6b);
+    box-shadow: 0 8px 25px rgba(255,165,0,0.85);
+  }
+  #message {
+    margin-top: 15px;
+    font-size: 1.2rem;
+    font-weight: 600;
+    text-shadow: 1px 1px 6px rgba(0,0,0,0.3);
+    min-height: 1.4em;
+    user-select: none;
+  }
+  #countdown {
+    margin-top: 20px;
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-shadow: 0 0 8px #ffc371;
+  }
+  #snoozeBtn {
+    margin-top: 20px;
+    background: #ffa502;
+    display: none;
+    box-shadow: 0 6px 15px rgba(255,165,0,0.7);
+  }
+
+  @keyframes gradientShift {
+    0% {background-position: 0% 50%;}
+    50% {background-position: 100% 50%;}
+    100% {background-position: 0% 50%;}
+  }
+</style>
+</head>
+<body>
+
+<h1>⏰ Advanced Alarm Clock</h1>
+
+<form id="alarmForm">
+  <label for="alarmTime">Set Alarm Time:</label>
+  <input type="time" id="alarmTime" name="alarm_time" required />
+
+  <label for="method">Alarm Sound Method:</label>
+  <select id="method" name="method" required>
+    <option value="tts">Text-to-Speech (Default)</option>
+    <option value="beep">Beep Sound</option>
+    <option value="custom">Upload Audio File</option>
+  </select>
+
+  <div id="customAudioDiv" style="display:none;">
+    <label for="custom_audio">Choose audio file (mp3/wav):</label>
+    <input type="file" id="custom_audio" name="custom_audio" accept="audio/*" />
+  </div>
+
+  <label>
+    <input type="checkbox" id="notification" name="notification" />
+    Enable Desktop Notification
+  </label>
+
+  <label for="snooze_minutes">Snooze Duration (minutes):</label>
+  <input type="number" id="snooze_minutes" name="snooze_minutes" value="5" min="1" max="60" />
+
+  <button type="submit">Set Alarm</button>
+</form>
+
+<p id="message"></p>
+<p id="countdown"></p>
+<button id="snoozeBtn">Snooze Alarm</button>
+
+<script>
+  const form = document.getElementById('alarmForm');
+  const message = document.getElementById('message');
+  const countdown = document.getElementById('countdown');
+  const methodSelect = document.getElementById('method');
+  const customAudioDiv = document.getElementById('customAudioDiv');
+  const snoozeBtn = document.getElementById('snoozeBtn');
+
+  let alarmTime = null;
+  let countdownInterval = null;
+
+  methodSelect.addEventListener('change', () => {
+    if (methodSelect.value === 'custom') {
+      customAudioDiv.style.display = 'block';
+    } else {
+      customAudioDiv.style.display = 'none';
+    }
+  });
+
+  function requestNotificationPermission() {
+    if ('Notification' in window) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+    }
+  }
+
+  function showNotification(title, body) {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification(title, { body });
+    }
+  }
+
+  function startCountdown(timeStr) {
+    if (countdownInterval) clearInterval(countdownInterval);
+
+    function updateCountdown() {
+      const now = new Date();
+      const [hour, minute] = timeStr.split(':').map(Number);
+      let alarmDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, minute, 0);
+
+      if (alarmDate <= now) {
+        // If time passed, assume next day
+        alarmDate.setDate(alarmDate.getDate() + 1);
+      }
+
+      const diff = alarmDate - now;
+
+      if (diff <= 0) {
+        countdown.textContent = '⏰ Alarm Time!';
+        snoozeBtn.style.display = 'inline-block';
+        clearInterval(countdownInterval);
+        showNotification("Alarm!", `It's ${timeStr} now!`);
+      } else {
+        const hrs = Math.floor(diff / 1000 / 3600);
+        const mins = Math.floor((diff / 1000 / 60) % 60);
+        const secs = Math.floor((diff / 1000) % 60);
+        countdown.textContent = `Time left: ${hrs}h ${mins}m ${secs}s`;
+      }
+    }
+
+    updateCountdown();
+    countdownInterval = setInterval(updateCountdown, 1000);
+  }
+
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    message.textContent = '⏳ Setting alarm...';
+
+    const formData = new FormData(form);
+
+    const response = await fetch('/set_alarm', {
+      method: 'POST',
+      body: formData
+    });
+
+    const data = await response.json();
+
+    if (data.status === 'success') {
+      message.textContent = `✅ ${data.message}`;
+      alarmTime = formData.get('alarm_time');
+      startCountdown(alarmTime);
+      requestNotificationPermission();
+      snoozeBtn.style.display = 'none';
+    } else {
+      message.textContent = `❌ ${data.message}`;
+    }
+  });
+
+  snoozeBtn.addEventListener('click', async () => {
+    message.textContent = '⏳ Snoozing alarm...';
+    const response = await fetch('/snooze', { method: 'POST' });
+    const data = await response.json();
+    if (data.status === 'success') {
+      message.textContent = `✅ ${data.message}`;
+      alarmTime = data.message.match(/\d{2}:\d{2}/)[0];
+      startCountdown(alarmTime);
+      snoozeBtn.style.display = 'none';
+    } else {
+      message.textContent = `❌ ${data.message}`;
+    }
+  });
+</script>
+
+</body>
+</html>
