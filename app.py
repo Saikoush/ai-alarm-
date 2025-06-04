@@ -1,5 +1,5 @@
 import os
-from flask import Flask, request, jsonify, render_template, send_from_directory
+from flask import Flask, request, jsonify, render_template
 from werkzeug.utils import secure_filename
 from datetime import datetime, timedelta
 import threading
@@ -12,7 +12,6 @@ app = Flask(__name__)
 UPLOAD_FOLDER = 'uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# Create upload folder if it doesn't exist
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
@@ -42,10 +41,10 @@ def alarm_thread_func(alarm_time, method, custom_audio_path, snooze_minutes):
             elif method == 'beep':
                 try:
                     pygame.mixer.init()
-                    beep_path = os.path.join('beepsound', 'beep.wav')  # Your beep file path
+                    beep_path = os.path.join('beepsound', 'beep.wav')
                     beep_sound = pygame.mixer.Sound(beep_path)
                     beep_sound.play()
-                    time.sleep(5)  # Play for 5 seconds
+                    time.sleep(5)
                 except Exception as e:
                     print(f"Pygame error: {e}")
             elif method == 'custom' and custom_audio_path:
@@ -64,7 +63,7 @@ def alarm_thread_func(alarm_time, method, custom_audio_path, snooze_minutes):
 
 @app.route('/')
 def index():
-    return render_template('index.html')  # Your HTML file should be named index.html
+    return render_template('index.html')
 
 @app.route('/set_alarm', methods=['POST'])
 def set_alarm():
@@ -82,7 +81,6 @@ def set_alarm():
     except ValueError:
         return jsonify({'status': 'error', 'message': 'Invalid snooze minutes'})
 
-    # Parse alarm time string to datetime object (today or tomorrow)
     now = datetime.now()
     alarm_time = datetime.strptime(alarm_time_str, '%H:%M')
     alarm_time = alarm_time.replace(year=now.year, month=now.month, day=now.day)
@@ -104,17 +102,14 @@ def set_alarm():
         else:
             return jsonify({'status': 'error', 'message': 'Invalid file type'})
 
-    # If an alarm thread is running, stop it
     if alarm_data['alarm_thread'] and alarm_data['alarm_thread'].is_alive():
         alarm_data['alarm_active'] = False
         alarm_data['alarm_thread'].join()
 
-    # Start new alarm thread
     alarm_thread = threading.Thread(target=alarm_thread_func, args=(alarm_time, method, custom_audio_path, snooze_minutes))
     alarm_thread.daemon = True
     alarm_thread.start()
 
-    # Update alarm data
     alarm_data['alarm_time'] = alarm_time
     alarm_data['method'] = method
     alarm_data['custom_audio_path'] = custom_audio_path
@@ -150,4 +145,5 @@ def snooze():
     return jsonify({'status': 'success', 'message': f'Alarm snoozed to {new_alarm_time.strftime("%H:%M")}'})
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=True)
